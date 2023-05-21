@@ -1,8 +1,9 @@
 """
 """
 import tensorflow as tf
-
 import numpy as np
+
+import utils
 
 
 class VARSpectraAnalyzer:
@@ -35,6 +36,37 @@ class VARSpectraAnalyzer:
 
         self._cross_spectra = None
 
+    def compute_auto_cavariance(self):
+        def vec(mat):
+            return tf.reshape(mat, [-1])
+
+        def unvec(v):
+            k = int(np.sqrt(len(v)))
+            assert k * k == len(v)
+            return v.reshape((k, k), order="F")
+
+        kron = tf.experimental.numpy.kron
+
+        p = self.order
+        k = self.vector_dim
+        A = utils.convert_to_companion(self.coefficients)
+        W = tf.broadcast_to(tf.linalg.diag(self.level_scales),
+                            self.coefficients.shape)
+        W = np.zeros((k * p, k * p))
+        W[:k, :k] = tf.linalg.diag(self.level_scales)
+
+        acov_vec = tf.linalg.solve(
+                tf.eye((k * p) ** 2, dtype=tf.float64) - kron(A, A),
+                tf.cast(vec(W), dtype=tf.float64)[:, tf.newaxis])
+        acov = tf.reshape(acov_vec, (-1, k*p, k*p))
+
+        vecACF = np.linalg.solve(np.eye((k * p) ** 2) - np.kron(A, A), vec(W))
+        acf = unvec(vecACF)
+
+        assert np.allclose(acov, acf)
+
+        return acov
+
     def compute_cross_spectra(self):
         A = self._compute_coefficients_fourier()
         B = tf.linalg.inv(A)
@@ -45,8 +77,7 @@ class VARSpectraAnalyzer:
                                 axis=0)
         B_H = tf.transpose(B, perm=permutation, conjugate=True)
 
-        W = tf.broadcast_to(tf.linalg.diag(self.level_scales),
-                            B.shape)
+        W = tf.broadcast_to(tf.linalg.diag(self.level_scales), B.shape)
         W = tf.cast(W, dtype=tf.complex64)
         cross_spectra = B @ W @ B_H
         self._cross_spectra = cross_spectra

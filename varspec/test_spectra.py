@@ -136,6 +136,10 @@ class VARSpectraAnalyzerTest(unittest.TestCase):
         self.var_spec_analyzer = var_spec_analyzer
         self.var_spec_analyzer_batch = var_spec_analyzer_batch
 
+    def test_compute_auto_covariance(self):
+        self.var_spec_analyzer_batch.compute_auto_cavariance()
+        # self.assertTrue(actual)
+
     def test_compute_cross_spectra_value(self):
         expected = self.var_spec_analyzer.compute_cross_spectra()
         actual = self.var_spec_analyzer_batch.compute_cross_spectra()
